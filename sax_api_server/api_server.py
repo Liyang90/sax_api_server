@@ -209,9 +209,8 @@ async def create_chat_completion(request: ChatCompletionRequest,
     request_id = f"cmpl-{random_uuid()}"
     created_time = int(time.monotonic())
 
-    input_str = ",".join([str(token_id) for token_id in token_ids])
     # TODO: add option arg to process_single_sample call
-    sax_response = await lm_client.process_single_sample(input_str)
+    sax_response = await lm_client.process_single_sample(prompt)
     
 
     # Streaming response
@@ -223,17 +222,16 @@ async def create_chat_completion(request: ChatCompletionRequest,
     choices = []
     final_outputs = []
     for i, output in enumerate(sax_response):
-        output_token_ids = [int(token_id) for token_id in output[0].split(',')]
-        output_text = tokenizer.decode(output_token_ids, skip_special_tokens=True)
+        output_token_ids = tokenizer(output[0]).input_ids
         final_outputs.append({
             "index": i,
             "token_ids": output_token_ids,
-            "text": output_text,
+            "text": output[0],
             "score": output[1],
         })
         choice_data = ChatCompletionResponseChoice(
             index=i,
-            message=ChatMessage(role="assistant", content=output_text),
+            message=ChatMessage(role="assistant", content=output[0]),
         )
         choices.append(choice_data)
 
