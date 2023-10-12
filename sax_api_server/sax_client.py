@@ -33,7 +33,6 @@ class ThreadedLMClient:
     self._sax_model = sax.Model(model_path)
     self._sax_language_model = self._sax_model.LM()
     self._futures = []
-    self._loop = asyncio.get_running_loop()
 
   def _process_query(self, input, option=None):
     """Processes a single sample."""
@@ -53,7 +52,8 @@ class ThreadedLMClient:
     self._futures.append(future)
 
   async def process_single_sample(self, input, option=None):
-    result = await self._loop.run_in_executor(
+    loop = asyncio.get_running_loop()
+    result = await loop.run_in_executor(
             self._thread_pool, self._process_query, input, option)
     return result
 
