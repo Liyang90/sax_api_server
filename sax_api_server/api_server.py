@@ -508,17 +508,20 @@ if __name__ == "__main__":
                         help="allowed headers")
     parser.add_argument("--served-model-name",
                         type=str,
-                        default=None,
+                        default="Llama-2-7b-hf",
                         help="The model name used in the API. If not "
                         "specified, the model name will be the same as "
                         "the huggingface name.")
 
     parser.add_argument("--model-path",
                         type=str,
-                        default=None)
+                        default="/sax/test/llama2-7b-chat",
+                        help="SAX model path")
     parser.add_argument("--tokenizer-path",
                         type=str,
-                        default=None)
+                        default="hf-internal-testing/llama-tokenizer",
+                        help="Hugging Face tokenizer "
+                        "(only used to count number of tokens)")
     parser.add_argument("--num-client-threads",
                         type=int,
                         default=200,
