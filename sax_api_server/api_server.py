@@ -186,8 +186,8 @@ async def create_chat_completion(request: ChatCompletionRequest,
     for the API specification. This API mimics the OpenAI ChatCompletion API.
 
     NOTE: Currently we do not support the following features:
-        - function_call (Users should implement this by themselves)
-        - logit_bias (to be supported by vLLM engine)
+        - function_call
+        - logit_bias
     """
     logger.info(f"Received chat completion request: {request}")
 
@@ -196,7 +196,6 @@ async def create_chat_completion(request: ChatCompletionRequest,
         return error_check_ret
 
     if request.logit_bias is not None and len(request.logit_bias) > 0:
-        # TODO: support logit_bias in vLLM engine.
         return create_error_response(HTTPStatus.BAD_REQUEST,
                                      "logit_bias is not currently supported")
 
@@ -232,6 +231,7 @@ async def create_chat_completion(request: ChatCompletionRequest,
         choice_data = ChatCompletionResponseChoice(
             index=i,
             message=ChatMessage(role="assistant", content=output[0]),
+            finish_reason=None,
         )
         choices.append(choice_data)
 
@@ -266,7 +266,6 @@ async def create_chat_completion(request: ChatCompletionRequest,
     return response
 
 
-'''
 @app.post("/v1/completions")
 async def create_completion(request: CompletionRequest, raw_request: Request):
     """Completion API similar to OpenAI's API.
@@ -275,11 +274,10 @@ async def create_completion(request: CompletionRequest, raw_request: Request):
     for the API specification. This API mimics the OpenAI Completion API.
 
     NOTE: Currently we do not support the following features:
-        - echo (since the vLLM engine does not currently support
+        - echo
           getting the logprobs of prompt tokens)
-        - suffix (the language models we currently support do not support
-          suffix)
-        - logit_bias (to be supported by vLLM engine)
+        - suffix
+        - logit_bias
     """
     logger.info(f"Received completion request: {request}")
 
@@ -288,18 +286,14 @@ async def create_completion(request: CompletionRequest, raw_request: Request):
         return error_check_ret
 
     if request.echo:
-        # We do not support echo since the vLLM engine does not
-        # currently support getting the logprobs of prompt tokens.
         return create_error_response(HTTPStatus.BAD_REQUEST,
                                      "echo is not currently supported")
 
     if request.suffix is not None:
-        # The language models we currently support do not support suffix.
         return create_error_response(HTTPStatus.BAD_REQUEST,
                                      "suffix is not currently supported")
 
     if request.logit_bias is not None and len(request.logit_bias) > 0:
-        # TODO: support logit_bias in vLLM engine.
         return create_error_response(HTTPStatus.BAD_REQUEST,
                                      "logit_bias is not currently supported")
 
@@ -327,41 +321,17 @@ async def create_completion(request: CompletionRequest, raw_request: Request):
         prompt = request.prompt
 
     if use_token_ids:
-        _, error_check_ret = await check_length(request, prompt_ids=prompt)
+        return create_error_response(HTTPStatus.BAD_REQUEST,
+                                     "please provide text prompt")
     else:
         token_ids, error_check_ret = await check_length(request, prompt=prompt)
     if error_check_ret is not None:
         return error_check_ret
 
     created_time = int(time.monotonic())
-    try:
-        sampling_params = SamplingParams(
-            n=request.n,
-            best_of=request.best_of,
-            presence_penalty=request.presence_penalty,
-            frequency_penalty=request.frequency_penalty,
-            temperature=request.temperature,
-            top_p=request.top_p,
-            top_k=request.top_k,
-            stop=request.stop,
-            stop_token_ids=request.stop_token_ids,
-            ignore_eos=request.ignore_eos,
-            max_tokens=request.max_tokens,
-            logprobs=request.logprobs,
-            use_beam_search=request.use_beam_search,
-            skip_special_tokens=request.skip_special_tokens,
-        )
-    except ValueError as e:
-        return create_error_response(HTTPStatus.BAD_REQUEST, str(e))
 
-    if use_token_ids:
-        result_generator = engine.generate(None,
-                                           sampling_params,
-                                           request_id,
-                                           prompt_token_ids=prompt)
-    else:
-        result_generator = engine.generate(prompt, sampling_params, request_id,
-                                           token_ids)
+    # TODO: add option arg to process_single_sample call
+    sax_response = await lm_client.process_single_sample(prompt)
 
     # Similar to the OpenAI API, when n != best_of, we do not stream the
     # results. In addition, we do not stream the results when use beam search.
@@ -369,95 +339,38 @@ async def create_completion(request: CompletionRequest, raw_request: Request):
               and (request.best_of is None or request.n == request.best_of)
               and not request.use_beam_search)
 
-    def create_stream_response_json(
-        index: int,
-        text: str,
-        logprobs: Optional[LogProbs] = None,
-        finish_reason: Optional[str] = None,
-    ) -> str:
-        choice_data = CompletionResponseStreamChoice(
-            index=index,
-            text=text,
-            logprobs=logprobs,
-            finish_reason=finish_reason,
-        )
-        response = CompletionStreamResponse(
-            id=request_id,
-            created=created_time,
-            model=model_name,
-            choices=[choice_data],
-        )
-        response_json = response.json(ensure_ascii=False)
-
-        return response_json
-
-    async def completion_stream_generator() -> AsyncGenerator[str, None]:
-        previous_texts = [""] * request.n
-        previous_num_tokens = [0] * request.n
-        async for res in result_generator:
-            res: RequestOutput
-            for output in res.outputs:
-                i = output.index
-                delta_text = output.text[len(previous_texts[i]):]
-                if request.logprobs is not None:
-                    logprobs = create_logprobs(
-                        output.token_ids[previous_num_tokens[i]:],
-                        output.logprobs[previous_num_tokens[i]:],
-                        len(previous_texts[i]))
-                else:
-                    logprobs = None
-                previous_texts[i] = output.text
-                previous_num_tokens[i] = len(output.token_ids)
-                response_json = create_stream_response_json(
-                    index=i,
-                    text=delta_text,
-                    logprobs=logprobs,
-                )
-                yield f"data: {response_json}\n\n"
-                if output.finish_reason is not None:
-                    logprobs = (LogProbs()
-                                if request.logprobs is not None else None)
-                    response_json = create_stream_response_json(
-                        index=i,
-                        text="",
-                        logprobs=logprobs,
-                        finish_reason=output.finish_reason,
-                    )
-                    yield f"data: {response_json}\n\n"
-        yield "data: [DONE]\n\n"
-
     # Streaming response
     if stream:
-        return StreamingResponse(completion_stream_generator(),
-                                 media_type="text/event-stream")
+        # TODO: Add streaming response
+        return create_error_response(HTTPStatus.BAD_REQUEST, "Streaming not supported.")
 
     # Non-streaming response
-    final_res: RequestOutput = None
-    async for res in result_generator:
-        if await raw_request.is_disconnected():
-            # Abort the request if the client disconnects.
-            await engine.abort(request_id)
-            return create_error_response(HTTPStatus.BAD_REQUEST,
-                                         "Client disconnected")
-        final_res = res
-    assert final_res is not None
     choices = []
-    for output in final_res.outputs:
+    final_outputs = []
+    for i, output in enumerate(sax_response):
         if request.logprobs is not None:
-            logprobs = create_logprobs(output.token_ids, output.logprobs)
+            return create_error_response(HTTPStatus.BAD_REQUEST,
+                                         "logprobs is not currently supported")
         else:
             logprobs = None
+        output_token_ids = tokenizer(output[0]).input_ids
+        final_outputs.append({
+            "index": i,
+            "token_ids": output_token_ids,
+            "text": output[0],
+            "score": output[1],
+        })
         choice_data = CompletionResponseChoice(
-            index=output.index,
-            text=output.text,
+            index=i,
+            text=output[0],
             logprobs=logprobs,
-            finish_reason=output.finish_reason,
+            finish_reason=None,
         )
         choices.append(choice_data)
 
-    num_prompt_tokens = len(final_res.prompt_token_ids)
+    num_prompt_tokens = len(token_ids)
     num_generated_tokens = sum(
-        len(output.token_ids) for output in final_res.outputs)
+        len(output["token_ids"]) for output in final_outputs)
     usage = UsageInfo(
         prompt_tokens=num_prompt_tokens,
         completion_tokens=num_generated_tokens,
@@ -484,7 +397,7 @@ async def create_completion(request: CompletionRequest, raw_request: Request):
                                  media_type="text/event-stream")
 
     return response
-'''
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -508,17 +421,20 @@ if __name__ == "__main__":
                         help="allowed headers")
     parser.add_argument("--served-model-name",
                         type=str,
-                        default=None,
+                        default="Llama-2-7b-hf",
                         help="The model name used in the API. If not "
                         "specified, the model name will be the same as "
                         "the huggingface name.")
 
     parser.add_argument("--model-path",
                         type=str,
-                        default=None)
+                        default="/sax/test/llama2-7b-chat",
+                        help="SAX model path")
     parser.add_argument("--tokenizer-path",
                         type=str,
-                        default=None)
+                        default="hf-internal-testing/llama-tokenizer",
+                        help="Hugging Face tokenizer "
+                        "(only used to count number of tokens)")
     parser.add_argument("--num-client-threads",
                         type=int,
                         default=200,
