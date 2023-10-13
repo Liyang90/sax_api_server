@@ -208,8 +208,13 @@ async def create_chat_completion(request: ChatCompletionRequest,
     request_id = f"cmpl-{random_uuid()}"
     created_time = int(time.monotonic())
 
-    # TODO: add option arg to process_single_sample call
-    sax_response = await lm_client.process_single_sample(prompt)
+    extra_input = {
+        'temperature': request.temperature,
+        'per_example_max_decode_steps': request.max_tokens,
+        'per_example_top_k': request.top_k,
+        'per_example_top_p': request.top_p,
+    }
+    sax_response = await lm_client.process_single_sample(prompt, extra_input)
     
 
     # Streaming response
@@ -330,8 +335,13 @@ async def create_completion(request: CompletionRequest, raw_request: Request):
 
     created_time = int(time.monotonic())
 
-    # TODO: add option arg to process_single_sample call
-    sax_response = await lm_client.process_single_sample(prompt)
+    extra_input = {
+        'temperature': request.temperature,
+        'per_example_max_decode_steps': request.max_tokens,
+        'per_example_top_k': request.top_k,
+        'per_example_top_p': request.top_p,
+    }
+    sax_response = await lm_client.process_single_sample(prompt, extra_input)
 
     # Similar to the OpenAI API, when n != best_of, we do not stream the
     # results. In addition, we do not stream the results when use beam search.

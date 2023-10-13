@@ -31,12 +31,17 @@ class ThreadedLMClient:
     self._sax_language_model = self._sax_model.LM()
     self._futures = []
 
-  def _process_query(self, input, option=None):
+  def _process_query(self, input, extra_input=None):
     """Processes a single sample."""
+    option = None
+    if extra_input:
+      option = sax.ModelOptions()
+      for k, v in extra_input.items():
+        option.SetExtraInput(k, v)
     response = self._sax_language_model.Generate(input, option)
     return response
 
-  def process_single_query_async(self, input, option=None):
+  def process_single_query_async(self, input, extra_input=None):
     """Executes a single query and marks responses complete asynchronously.
 
     Args:
@@ -44,14 +49,15 @@ class ThreadedLMClient:
       warmup: Indicates that this is a warmup request.
     """
     future = self._thread_pool.submit(
-        self._process_query, input, option
+      self._process_query, input, extra_input
     )
     self._futures.append(future)
 
-  async def process_single_sample(self, input, option=None):
+  async def process_single_sample(self, input, extra_input=None):
     loop = asyncio.get_running_loop()
     result = await loop.run_in_executor(
-            self._thread_pool, self._process_query, input, option)
+      self._thread_pool, self._process_query, input, extra_input
+    )
     return result
 
   def flush(self):
