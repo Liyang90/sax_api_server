@@ -214,7 +214,7 @@ async def create_chat_completion(request: ChatCompletionRequest,
         'per_example_top_k': request.top_k,
         'per_example_top_p': request.top_p,
     }
-    sax_response = await lm_client.process_single_sample(prompt, extra_input)
+    sax_response = await lm_client.process_single_query(prompt, extra_input)
     
 
     # Streaming response
@@ -341,7 +341,7 @@ async def create_completion(request: CompletionRequest, raw_request: Request):
         'per_example_top_k': request.top_k,
         'per_example_top_p': request.top_p,
     }
-    sax_response = await lm_client.process_single_sample(prompt, extra_input)
+    sax_response = await lm_client.process_single_query(prompt, extra_input)
 
     # Similar to the OpenAI API, when n != best_of, we do not stream the
     # results. In addition, we do not stream the results when use beam search.

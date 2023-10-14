@@ -53,7 +53,7 @@ class ThreadedLMClient:
     )
     self._futures.append(future)
 
-  async def process_single_sample(self, input, extra_input=None):
+  async def process_single_query(self, input, extra_input=None):
     loop = asyncio.get_running_loop()
     result = await loop.run_in_executor(
       self._thread_pool, self._process_query, input, extra_input
