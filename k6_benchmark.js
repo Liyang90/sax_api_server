@@ -49,7 +49,7 @@ export default function () {
         };
       }),
       //max_tokens: conv[conv.length-1].value.length,
-      max_tokens: 64,
+      max_tokens: 128,
       top_k: 200,
     }
   ), {
