@@ -4,13 +4,15 @@ import concurrent.futures
 import dataclasses
 import json
 import logging
+import numpy as np
 from operator import itemgetter  # pylint: disable=g-importing-member
+import sys
 import time
 from typing import List
 
-import numpy as np
-from saxml.client.python import sax
+sys.path.append('/saxml/bazel-bin/saxml/client/python/')
 
+import sax
 
 
 class ThreadedLMClient:
