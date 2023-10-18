@@ -458,6 +458,10 @@ if __name__ == "__main__":
                         type=int,
                         default=200,
                         help="Number of client threads to use.")
+    parser.add_argument("--max-model-len",
+                        type=int,
+                        default=2048,
+                        help="Max context length of the model.")
     
     args = parser.parse_args()
 
@@ -477,7 +481,7 @@ if __name__ == "__main__":
         served_model = args.model_path
 
     tokenizer = get_tokenizer(args.tokenizer_path)
-    max_model_len = 2048
+    max_model_len = args.max_model_len
 
     lm_client = ThreadedLMClient(args.model_path, args.num_client_threads)
 
