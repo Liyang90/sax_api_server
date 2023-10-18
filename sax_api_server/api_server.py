@@ -129,15 +129,24 @@ async def check_length(
 
     if request.max_tokens is None:
         request.max_tokens = max_model_len - token_num        
-    if token_num > max_model_len or token_num + request.max_tokens > max_model_len:
+    if request.max_tokens <= 0:
         return input_ids, create_error_response(
             HTTPStatus.BAD_REQUEST,
             f"This model's maximum context length is {max_model_len} tokens. "
-            f"However, you requested {request.max_tokens + token_num} tokens "
-            f"({token_num} in the messages, "
-            f"{request.max_tokens} in the completion). "
-            f"Please reduce the length of the messages or completion.",
+            f"However, your prompt has {token_num} tokens "
+            f"Please reduce the length of the messages.",
         )
+    elif  token_num + request.max_tokens > max_model_len:
+        #return input_ids, create_error_response(
+        #    HTTPStatus.BAD_REQUEST,
+        #    f"This model's maximum context length is {max_model_len} tokens. "
+        #    f"However, you requested {request.max_tokens + token_num} tokens "
+        #    f"({token_num} in the messages, "
+        #    f"{request.max_tokens} in the completion). "
+        #    f"Please reduce the length of the messages or completion.",
+        #)
+        return input_ids[token_num + request.max_tokens - max_model_len:], None
+
     else:
         return input_ids, None
 
