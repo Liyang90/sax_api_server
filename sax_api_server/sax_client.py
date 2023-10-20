@@ -10,8 +10,6 @@ import sys
 import time
 from typing import List
 
-sys.path.append('/saxml/bazel-bin/saxml/client/python/')
-
 import sax
 
 
