@@ -137,8 +137,12 @@ async def check_length(
             f"Please reduce the length of the messages.",
         )
     elif  token_num > max_model_len:
-        return input_ids[token_num - max_model_len:], None
-
+        return input_ids, create_error_response(
+            HTTPStatus.BAD_REQUEST,
+            f"This model's maximum context length is {max_model_len} tokens. "
+            f"However, your prompt has {token_num} tokens "
+            f"Please reduce the length of the messages.",
+        )
     else:
         return input_ids, None
 

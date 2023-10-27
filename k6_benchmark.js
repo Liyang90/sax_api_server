@@ -25,6 +25,7 @@ export const options = {
       duration: '10s',
       rate: __ENV.RPS || 10,
       preAllocatedVUs: __ENV.N || 100,
+      gracefulStop: '300s',
     },
   },
 };
